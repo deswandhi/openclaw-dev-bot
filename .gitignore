@@ -1,0 +1,44 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.secret
+auth.json
+auth-profiles.json
+auth-state.json
+*token*
+*Token*
+*TOKEN*
+*api-key*
+*apikey*
+
+# OpenClaw and channel session material
+.openclaw/
+openclaw-data/
+credentials/
+sessions/
+session/
+whatsapp-session/
+whatsapp-sessions/
+baileys_auth_info/
+baileys_auth_info*/
+auth_info_baileys/
+auth_info_baileys*/
+creds.json
+app-state-sync-key-*.json
+sender-key-*.json
+session-*.json
+pre-key-*.json
+
+# Backups may contain local env values
+backups/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
