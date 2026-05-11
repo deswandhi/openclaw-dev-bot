@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+.env.swp
 *.key
 *.pem
 *.p12
@@ -36,6 +37,13 @@ pre-key-*.json
 
 # Backups may contain local env values
 backups/
+*.bak
+*.last-good
+
+# Runtime state and logs
+.run/
+logs/
+*.log
 
 # OS/editor noise
 .DS_Store

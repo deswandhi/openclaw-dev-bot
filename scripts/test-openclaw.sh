@@ -115,20 +115,20 @@ check_openclaw() {
 
 check_codex() {
   if ! command -v codex >/dev/null 2>&1; then
-    fail "codex CLI is not on PATH"
+    warn "codex CLI is not on PATH; optional for Qwen-only Yuna"
     return
   fi
 
   if codex --version >/dev/null 2>&1; then
-    pass "codex --version succeeded"
+    pass "optional codex --version succeeded"
   else
-    fail "codex --version failed"
+    warn "optional codex --version failed"
   fi
 
   if codex app-server --help >/dev/null 2>&1; then
-    pass "codex app-server command is available"
+    pass "optional codex app-server command is available"
   else
-    fail "codex app-server command is unavailable or too old"
+    warn "optional codex app-server command is unavailable or too old"
   fi
 }
 

@@ -1,0 +1,26 @@
+[Unit]
+Description=Yuna OpenClaw Telegram Assistant
+Documentation=https://docs.openclaw.ai
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ubuntu/openclaw-dev-bot
+ExecStart=/home/ubuntu/openclaw-dev-bot/scripts/start-yuna.sh
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+TimeoutStopSec=30
+Environment=OPENCLAW_CONFIG=/home/ubuntu/openclaw-dev-bot/openclaw.json
+Environment=PATH=/home/ubuntu/.npm-global/bin:/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+# Hardening for user-level systemd. Secrets stay in .env and are loaded by start-yuna.sh.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/ubuntu/openclaw-dev-bot /home/ubuntu/.openclaw
+
+[Install]
+WantedBy=default.target

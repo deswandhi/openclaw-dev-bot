@@ -5,7 +5,7 @@
     "bind": "loopback",
     "auth": {
       "mode": "token",
-      "token": "bea9722261743c3fcd2d540fe75a302827f842550a73d0f0"
+      "token": "${OPENCLAW_GATEWAY_TOKEN}"
     }
   },
   "commands": {
@@ -16,39 +16,10 @@
   },
   "plugins": {
     "allow": [
-      "codex",
       "telegram",
       "qwen"
     ],
     "entries": {
-      "codex": {
-        "enabled": true,
-        "config": {
-          "discovery": {
-            "enabled": true,
-            "timeoutMs": 2500
-          },
-          "appServer": {
-            "transport": "stdio",
-            "command": "codex",
-            "args": [
-              "app-server",
-              "--listen",
-              "stdio://"
-            ],
-            "requestTimeoutMs": 60000,
-            "approvalPolicy": "on-request",
-            "sandbox": "workspace-write"
-          },
-          "computerUse": {
-            "enabled": false,
-            "autoInstall": false,
-            "marketplaceDiscoveryTimeoutMs": 60000,
-            "pluginName": "computer-use",
-            "mcpServerName": "computer-use"
-          }
-        }
-      },
       "qwen": {
         "enabled": true
       }

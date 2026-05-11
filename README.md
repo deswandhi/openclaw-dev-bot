@@ -1,224 +1,352 @@
 # Yuna OpenClaw Assistant
 
-Yuna is an OpenClaw assistant for daily Data & AI product work at Indosat. The assistant runs through OpenClaw Gateway, uses Telegram as the production channel, keeps WhatsApp ready for future activation, and uses Alibaba Qwen as the only LLM provider.
+## Project Overview
 
-Yuna's style is calm, thoughtful, supportive, professional, concise, and reliable. Her scope includes proposal drafting, meeting prep, technical architecture, cloud/GPU/data platform analysis, reminders, productivity support, vendor and partner analysis, and executive-ready writing.
+Yuna is a production-oriented OpenClaw Telegram assistant for daily Data & AI product work at Indosat. The bot receives messages through Telegram, routes them through OpenClaw Gateway, uses Alibaba Qwen as the only LLM provider, and replies back in Telegram.
+
+## Who Is Yuna
+
+Yuna is inspired by Final Fantasy X: calm, thoughtful, supportive, professional, concise, and reliable. In this project, Yuna is configured as a practical work assistant, not a roleplay bot. She helps organize thinking, draft materials, prepare meetings, analyze architecture options, and keep daily execution moving.
+
+## Target Use Case
+
+Yuna supports a Data & AI Product Expert at Indosat with:
+
+- Proposal and executive-summary drafting.
+- Meeting preparation and follow-up.
+- AI/data platform architecture review.
+- Cloud, GPU, and data infrastructure analysis.
+- Product planning, roadmap thinking, and partner/vendor comparison.
+- Productivity support, reminders, and concise decision memos.
 
 ## Architecture
 
 ```text
-Telegram user
-    |
-    v
-Telegram Bot API
-    |
-    v
-OpenClaw Gateway / Yuna
-    |
-    v
-Alibaba Qwen via DashScope OpenAI-compatible endpoint
-    |
-    v
-Telegram reply
+User on Telegram
+    -> Telegram Bot API
+    -> OpenClaw Gateway
+    -> Yuna Agent
+    -> Alibaba Qwen API
+    -> Yuna response
+    -> Telegram Bot reply
 ```
 
-Request flow: Telegram -> OpenClaw/Yuna -> Alibaba Qwen -> Telegram reply.
+There is no Gemini fallback and no OpenAI provider requirement. Qwen is the only active LLM provider.
 
-Key files:
+## Tech Stack
 
-- `openclaw.json`: OpenClaw gateway, Telegram, WhatsApp readiness, Yuna persona, and Qwen provider config.
-- `.env.example`: placeholder-only environment template.
-- `scripts/start-yuna.sh`: validates env, prints a masked startup summary, and starts OpenClaw.
-- `scripts/test-openclaw.sh`: validates OpenClaw, config syntax, Codex CLI availability, and Telegram env loading.
-- `scripts/test-qwen.sh`: validates Qwen env and calls Qwen `/models` plus `/chat/completions`.
-- `scripts/test-provider-routing.sh`: compatibility wrapper for `scripts/test-qwen.sh`.
-- `scripts/test-telegram.sh`: validates Telegram token with `getMe`, checks delivery mode, and checks `getUpdates` reachability.
-- `scripts/backup-config.sh`: backs up local config files.
+- Ubuntu 26.04 LTS
+- OpenClaw Gateway
+- Telegram Bot API
+- Alibaba Qwen through DashScope OpenAI-compatible API
+- Bash operational scripts
+- user-level systemd service for background operation
+- Static HTML documentation in `docs/index.html`
 
-## Environment
+## Repository Structure
 
-Create local `.env` from the template:
+```text
+.
+├── .env.example
+├── .gitignore
+├── README.md
+├── docs/
+│   ├── assets/yuna.png
+│   └── index.html
+├── openclaw.json
+├── public/yuna.png
+├── scripts/
+│   ├── backup-config.sh
+│   ├── install.sh
+│   ├── lib/env.sh
+│   ├── logs-yuna.sh
+│   ├── restart-yuna.sh
+│   ├── start-background.sh
+│   ├── start-yuna.sh
+│   ├── status-yuna.sh
+│   ├── stop-yuna.sh
+│   ├── test-openclaw.sh
+│   ├── test-provider-routing.sh
+│   ├── test-qwen.sh
+│   ├── test-telegram.sh
+│   └── update-telegram-profile.sh
+└── systemd/yuna-openclaw.service
+```
+
+## Prerequisites
+
+- Node.js 20 or newer.
+- OpenClaw CLI on `PATH`.
+- `curl`, `bash`, and `systemctl`.
+- Alibaba Qwen API key.
+- Telegram bot token from `@BotFather`.
+- Optional: `sudo loginctl enable-linger ubuntu` for user-service auto-start after reboot.
+
+## Environment Variables
+
+Create `.env` from `.env.example`:
 
 ```bash
 cp .env.example .env
 chmod 600 .env
 ```
 
-Required variables:
+Required values:
 
 ```bash
-# Primary Provider - Alibaba Qwen
 QWEN_API_KEY=
 QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1
 QWEN_MODEL=qwen-max
-
-# Agent
 OPENCLAW_AGENT_NAME=Yuna
 OPENCLAW_AGENT_RUNTIME=
-
-# Telegram
+OPENCLAW_GATEWAY_TOKEN=
 TELEGRAM_BOT_TOKEN=
 ```
 
-`OPENCLAW_AGENT_RUNTIME` is intentionally blank. Yuna uses OpenClaw's default agent runtime so Telegram messages route to the configured Qwen model. Do not set this to `codex` for the Telegram bot unless the selected model is a `codex/*` model; forcing Codex with `qwen/*` can block normal Telegram replies because the Codex harness is designed for Codex model execution.
+`OPENCLAW_AGENT_RUNTIME` is intentionally blank. Yuna uses OpenClaw's default runtime so Telegram messages route to `qwen/${QWEN_MODEL}`. Do not set it to `codex` for the Telegram bot unless you switch the model to a `codex/*` model.
 
-## Qwen-Only Model Config
+## Installation
 
-`openclaw.json` defines only Alibaba Qwen:
+```bash
+cd ~/openclaw-dev-bot
+./scripts/install.sh
+chmod 600 .env
+```
+
+Fill in `.env` with local secrets. Never commit `.env`.
+
+## Configuration
+
+Main configuration is [openclaw.json](/home/ubuntu/openclaw-dev-bot/openclaw.json). It contains:
+
+- Qwen-only model provider.
+- Telegram channel enabled.
+- WhatsApp disabled but ready for future QR pairing.
+- Yuna system prompt/persona.
+- Gateway auth token read from `.env`, not committed config.
+- No forced Codex runtime; Yuna Telegram turns use OpenClaw's default runtime with Qwen.
+
+Validate config:
+
+```bash
+OPENCLAW_CONFIG_PATH=$PWD/openclaw.json openclaw config validate
+```
+
+## Qwen Provider Setup
+
+Qwen is configured as an OpenAI-compatible provider:
 
 ```json
-"models": {
-  "mode": "merge",
-  "providers": {
-    "qwen": {
-      "baseUrl": "${QWEN_BASE_URL}",
-      "apiKey": "${QWEN_API_KEY}",
-      "auth": "api-key",
-      "api": "openai-completions"
-    }
-  }
+"qwen": {
+  "baseUrl": "${QWEN_BASE_URL}",
+  "apiKey": "${QWEN_API_KEY}",
+  "auth": "api-key",
+  "api": "openai-completions"
 }
 ```
 
-The active Yuna model is:
-
-```json
-"model": "qwen/${QWEN_MODEL}"
-```
-
-There is no fallback provider and no Gemini configuration.
-
-## Telegram Setup
-
-1. Create the bot with `@BotFather`.
-2. Put the BotFather token in `.env` as `TELEGRAM_BOT_TOKEN`.
-3. Start Yuna:
-
-   ```bash
-   ./scripts/start-yuna.sh
-   ```
-
-4. Send a direct message to the bot. If OpenClaw creates a pairing request, approve it:
-
-   ```bash
-   openclaw pairing list telegram
-   openclaw pairing approve telegram <CODE>
-   ```
-
-For groups, the config requires mentioning the bot. For DMs, no mention is required after pairing/approval policy is satisfied.
-
-## WhatsApp Readiness
-
-WhatsApp remains configured but disabled. When ready:
+Test Qwen:
 
 ```bash
-openclaw plugins install @openclaw/whatsapp
-openclaw channels login --channel whatsapp --account work
+./scripts/test-qwen.sh
 ```
 
-After QR pairing, set `channels.whatsapp.enabled` to `true` in `openclaw.json`, set allowlists for real numbers/groups, and restart Yuna.
+The test calls `/models` and `/chat/completions` without printing secrets.
 
-## Codex Notes
+## Telegram BotFather Setup
 
-The Codex plugin configuration is preserved for future OpenClaw/Codex workflows, but Yuna's Telegram runtime is not forced to Codex. This is deliberate: Qwen is a normal OpenAI-compatible chat model, while the Codex harness is for Codex runtime/model execution. Keeping the default OpenClaw runtime lets Telegram inbound messages route to Qwen and return replies.
+1. Open `@BotFather`.
+2. Create or select the Yuna bot.
+3. Copy the token into `.env` as `TELEGRAM_BOT_TOKEN`.
+4. Validate:
 
-Codex can still be checked manually:
+   ```bash
+   ./scripts/test-telegram.sh
+   ```
+
+## Telegram Pairing Approval
+
+The config uses `dmPolicy: "pairing"`. On first contact, approve the pairing:
+
+```bash
+openclaw pairing list telegram
+openclaw pairing approve telegram <CODE>
+```
+
+For groups, mention Yuna because group messages require mention by default.
+
+## Running Foreground
+
+Use foreground mode while debugging:
+
+```bash
+./scripts/start-yuna.sh
+```
+
+This prints a masked startup summary and then runs OpenClaw Gateway.
+
+## Running Background
+
+Preferred production mode is user-level systemd:
+
+```bash
+./scripts/start-background.sh
+```
+
+If `systemctl --user` is unavailable in the current shell, the script falls back to a local PID/log mode under `.run/` and `logs/`. That fallback is useful for constrained terminals, but systemd is preferred for production.
+
+## Auto-Start After Reboot
+
+For user-level systemd services, enable lingering once:
+
+```bash
+sudo loginctl enable-linger ubuntu
+```
+
+Then run:
+
+```bash
+./scripts/start-background.sh
+```
+
+The service file is [systemd/yuna-openclaw.service](/home/ubuntu/openclaw-dev-bot/systemd/yuna-openclaw.service).
+
+## Update Telegram Profile Image
+
+The image source is [public/yuna.png](/home/ubuntu/openclaw-dev-bot/public/yuna.png).
+
+Try automatic update:
+
+```bash
+./scripts/update-telegram-profile.sh
+```
+
+Telegram Bot API supports `setMyProfilePhoto`, but static profile photos are documented as JPG uploads. If Telegram rejects `public/yuna.png`, use the manual BotFather fallback:
 
 ```text
-/codex status
-/codex models
+/setuserpic
+choose Yuna bot
+upload public/yuna.png
 ```
 
-## Tests
+Dry run:
 
-Run:
+```bash
+DRY_RUN=1 ./scripts/update-telegram-profile.sh
+```
+
+## Functionality Testing
+
+Run the full smoke set:
 
 ```bash
 OPENCLAW_CONFIG_PATH=$PWD/openclaw.json openclaw config validate
 ./scripts/test-openclaw.sh
 ./scripts/test-qwen.sh
 ./scripts/test-telegram.sh
+./scripts/status-yuna.sh
 ```
 
-Expected high-level output:
+Send this in Telegram:
 
 ```text
-Config valid
-Smoke tests completed successfully.
-Qwen tests completed successfully.
-Telegram getMe succeeded for @<bot_username>
+halo Yuna, jawab singkat: sistem sudah aktif.
 ```
 
-None of the scripts print API keys or Telegram tokens.
+Expected behavior: Yuna replies through Telegram using Alibaba Qwen only.
 
-## Start Yuna
+## Smoke Test Checklist
+
+- `.env` exists and is mode `600`.
+- `TELEGRAM_BOT_TOKEN` is present.
+- `QWEN_API_KEY`, `QWEN_BASE_URL`, and `QWEN_MODEL` are present.
+- OpenClaw config validates.
+- Qwen `/models` succeeds.
+- Qwen chat completion succeeds.
+- Telegram `getMe` succeeds.
+- OpenClaw service is running.
+- Telegram pairing is approved.
+- A real Telegram message gets a reply.
+
+## Operations Guide
+
+Start:
 
 ```bash
-cd ~/openclaw-dev-bot
-./scripts/start-yuna.sh
+./scripts/start-background.sh
 ```
 
-Expected startup summary:
+Stop:
 
-```text
-Starting Yuna OpenClaw Gateway
-  active provider: qwen/qwen-max
-  fallback provider: none
-  agent runtime: OpenClaw default
-  telegram: enabled
-  codex: enabled
-  secrets printed: no
+```bash
+./scripts/stop-yuna.sh
 ```
 
-## Readiness Checklist
+Restart:
 
-- Telegram bot token is present in `.env`.
-- `./scripts/test-telegram.sh` passes.
-- Qwen key, base URL, and model are present in `.env`.
-- `./scripts/test-qwen.sh` passes.
-- OpenClaw config validates.
-- `./scripts/start-yuna.sh` starts and stays running.
-- Send: `halo Yuna, jawab singkat: sistem sudah aktif`.
-- Yuna replies in Telegram using Qwen only.
+```bash
+./scripts/restart-yuna.sh
+```
 
-## Security
+Status:
 
-- Keep `.env` mode `600`.
-- Never commit `.env`, API keys, Telegram tokens, private keys, auth files, or WhatsApp session credentials.
-- Do not echo full `.env` contents into logs or support tickets.
-- Scripts only report whether secrets are set; they do not print values.
-- Keep WhatsApp disabled until QR pairing is intentional.
+```bash
+./scripts/status-yuna.sh
+```
 
-## Troubleshooting
+Logs:
 
-### Bot Receives Message But Does Not Reply
+```bash
+./scripts/logs-yuna.sh
+```
 
-Check layers in this order:
+Back up config:
+
+```bash
+./scripts/backup-config.sh
+```
+
+Update process:
+
+```bash
+git pull
+OPENCLAW_CONFIG_PATH=$PWD/openclaw.json openclaw config validate
+./scripts/test-qwen.sh
+./scripts/test-telegram.sh
+./scripts/restart-yuna.sh
+```
+
+## Logs And Troubleshooting
+
+### Bot Receives Message But No Reply
+
+Check:
 
 ```bash
 ./scripts/test-telegram.sh
 ./scripts/test-qwen.sh
-OPENCLAW_CONFIG_PATH=$PWD/openclaw.json openclaw config validate
-./scripts/start-yuna.sh
+./scripts/logs-yuna.sh
 ```
 
-Then send a new DM and watch the OpenClaw foreground logs. If a pairing request appears, approve it with `openclaw pairing approve telegram <CODE>`.
+Common causes:
+
+- Pairing request is pending.
+- `OPENCLAW_AGENT_RUNTIME` was set to `codex`.
+- Qwen key is invalid.
+- Service is not running.
+- Telegram webhook is configured elsewhere while this server expects polling.
 
 ### Invalid Telegram Token
 
-`scripts/test-telegram.sh` will fail at `getMe`. Re-copy the token from `@BotFather` into `.env` and restart Yuna.
+`scripts/test-telegram.sh` fails at `getMe`. Re-copy the token from `@BotFather`.
 
-### Polling vs Webhook Issue
+### Qwen 401/403
 
-`scripts/test-telegram.sh` prints Telegram delivery mode from `getWebhookInfo`. If webhook mode is set unexpectedly for this server, clear the webhook from BotFather/API or run OpenClaw in the deployment mode that owns the webhook. For local/server foreground operation, polling is usually simpler.
+The key is invalid, expired, lacks model permission, or is not enabled for the configured DashScope endpoint.
 
-### Qwen 401 Or 403
+### Qwen DNS/Network Issue
 
-The Qwen endpoint is reachable but the key is invalid, expired, lacks model permission, or is not enabled for the international DashScope endpoint. Update `QWEN_API_KEY` in `.env`.
-
-### Qwen DNS Or Network Issue
-
-If `scripts/test-qwen.sh` reports failure before HTTP response, check DNS and outbound HTTPS:
+Check outbound access:
 
 ```bash
 dig dashscope-intl.aliyuncs.com
@@ -227,14 +355,101 @@ curl -I https://dashscope-intl.aliyuncs.com
 
 ### Runtime/Provider Mismatch
 
-If logs mention Codex runtime or model incompatibility, confirm:
+Confirm:
 
 ```bash
 grep '^OPENCLAW_AGENT_RUNTIME=' .env
 ```
 
-It should be empty. The active model should be `qwen/${QWEN_MODEL}`, and `openclaw.json` should not force `agentRuntime.id` for Yuna.
+It should be empty for Qwen-only Telegram operation.
 
-### WhatsApp Future Activation
+## Security Best Practices
 
-WhatsApp is not part of the Telegram response path. Keep it disabled until QR pairing is complete.
+- Keep `.env` ignored and mode `600`.
+- Never print API keys, Telegram tokens, or gateway auth tokens.
+- Do not commit `.env`, logs, runtime PID files, WhatsApp sessions, private keys, or backups containing secrets.
+- Keep Telegram `dmPolicy` as `pairing`.
+- Add `commands.ownerAllowFrom` only after collecting your stable Telegram sender ID.
+- Keep owner/elevated commands disabled unless needed.
+- Review `git diff` before committing.
+
+Owner allowlist best practice:
+
+```json
+"commands": {
+  "ownerAllowFrom": ["telegram:<your_numeric_telegram_user_id>"],
+  "ownerDisplay": "hash"
+}
+```
+
+Only add this after verifying the exact sender ID from OpenClaw pairing/logs.
+
+## Backup And Recovery
+
+Create a backup:
+
+```bash
+./scripts/backup-config.sh
+```
+
+Recovery:
+
+1. Restore `openclaw.json`.
+2. Restore local `.env` from a secure password manager, not from git.
+3. Run tests.
+4. Restart Yuna.
+
+## Git Hygiene
+
+- `.env` and logs are ignored.
+- Runtime state under `.run/` is ignored.
+- Backup files are ignored.
+- Run `git diff --check` before commit.
+- Do not commit generated files containing secrets.
+
+## WhatsApp Readiness
+
+WhatsApp is intentionally disabled. Future activation:
+
+```bash
+openclaw plugins install @openclaw/whatsapp
+openclaw channels login --channel whatsapp --account work
+```
+
+Then set `channels.whatsapp.enabled` to `true`, configure allowlists, and restart.
+
+## Future Gmail, Calendar, And RAG Readiness
+
+Roadmap items:
+
+- Gmail triage connector for action extraction and reply drafting.
+- Calendar briefing and meeting prep.
+- RAG over Indosat-safe product notes, proposals, and architecture documents.
+- Approval-gated tools for reminders, follow-ups, and draft publishing.
+- Dedicated audit logging with redaction.
+
+## Roadmap
+
+- Add owner allowlist after Telegram user ID verification.
+- Add service health checks and alerting.
+- Add deployment runbook for OpenClaw upgrades.
+- Add WhatsApp after dedicated number/QR pairing.
+- Add document retrieval with explicit data boundaries.
+
+## FAQ
+
+### Why Qwen Only?
+
+The current requirement is a single Alibaba Qwen provider with no fallback. This keeps behavior predictable and simplifies troubleshooting.
+
+### Why Is Codex Not The Active Runtime?
+
+Telegram chat turns use OpenClaw's default runtime because the active model is `qwen/${QWEN_MODEL}`, not a `codex/*` model. The stale Codex plugin entry was removed so production startup logs stay clean.
+
+### Can The Bot Photo Be Updated Automatically?
+
+The script uses Telegram Bot API `setMyProfilePhoto`. If Telegram rejects the PNG upload, use BotFather `/setuserpic`.
+
+### Does The HTML Documentation Need A Server?
+
+No. Open [docs/index.html](/home/ubuntu/openclaw-dev-bot/docs/index.html) directly in a browser.
